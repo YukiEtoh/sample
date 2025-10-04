@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写真位置マップ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300;400;500;600;700&family=Fredoka:wght@300;400;500;600&display=swap');
+
+        body {
+            font-family: 'Fredoka', 'Comfortaa', cursive, sans-serif;
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            font-weight: 600;
+            color: #fff;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        #photoInput {
+            display: none;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            background: linear-gradient(45deg, #ff9a9e, #fecfef, #ff9a9e);
+            background-size: 200% 200%;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1.3rem;
+            font-weight: 600;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 8px 25px rgba(255, 154, 158, 0.5);
+            animation: gradientShift 3s ease infinite, floatUp 2s ease-in-out infinite, pulse 3s ease-in-out infinite;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            position: relative;
+            overflow: hidden;
+            transform: translateY(0);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .upload-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-btn::after {
+            content: '✨';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 1.5rem;
+            animation: sparkle 2s ease-in-out infinite;
+            opacity: 0.8;
+        }
+
+        .upload-btn:hover::before {
+            left: 100%;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-8px) scale(1.15);
+            box-shadow: 0 15px 35px rgba(255, 154, 158, 0.7);
+            animation-play-state: paused;
+            background: linear-gradient(45deg, #ff6b9d, #ff9a9e, #fecfef);
+        }
+
+        .upload-btn:active {
+            transform: translateY(-4px) scale(1.1);
+            box-shadow: 0 5px 15px rgba(255, 154, 158, 0.8);
+            transition: all 0.1s ease;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes floatUp {
+            0%, 100% { 
+                transform: translateY(0px);
+            }
+            50% { 
+                transform: translateY(-5px);
+            }
+        }
+
+        @keyframes bounceIn {
+            0% {
+                transform: scale(0.3) translateY(-50px);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.05) translateY(-10px);
+            }
+            70% {
+                transform: scale(0.9) translateY(0px);
+            }
+            100% {
+                transform: scale(1) translateY(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 8px 25px rgba(255, 154, 158, 0.5);
+            }
+            50% {
+                box-shadow: 0 8px 25px rgba(255, 154, 158, 0.8), 0 0 0 10px rgba(255, 154, 158, 0.1);
+            }
+            100% {
+                box-shadow: 0 8px 25px rgba(255, 154, 158, 0.5);
+            }
+        }
+
+        @keyframes sparkle {
+            0%, 100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 0.8;
+            }
+            50% {
+                transform: scale(1.2) rotate(180deg);
+                opacity: 1;
+            }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            height: 70vh;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(255, 154, 158, 0.3);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .photo-gallery {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(255, 154, 158, 0.3);
+            overflow-y: auto;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .photo-gallery h3 {
+            margin-bottom: 20px;
+            color: #ff6b9d;
+            border-bottom: 3px solid #ff9a9e;
+            padding-bottom: 12px;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .photo-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 2px solid #fecfef;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: linear-gradient(135deg, #fff 0%, #fef7ff 100%);
+            box-shadow: 0 4px 15px rgba(255, 154, 158, 0.1);
+        }
+
+        .photo-item:hover {
+            border-color: #ff9a9e;
+            transform: translateX(8px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(255, 154, 158, 0.3);
+        }
+
+        .photo-thumbnail {
+            width: 65px;
+            height: 65px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-right: 15px;
+            border: 3px solid #fecfef;
+            box-shadow: 0 4px 10px rgba(255, 154, 158, 0.2);
+        }
+
+        .photo-info {
+            flex: 1;
+        }
+
+        .photo-name {
+            font-weight: 600;
+            color: #ff6b9d;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+
+        .photo-location {
+            color: #ff9a9e;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .no-location {
+            color: #ff9a9e;
+            font-style: italic;
+            font-weight: 500;
+        }
+
+        .location-marker {
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 5px;
+            display: inline-block;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(255, 154, 158, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .map-container {
+                height: 50vh;
+            }
+            
+            header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        /* カスタムマーカーのスタイル */
+        .custom-marker {
+            background: linear-gradient(45deg, #ff9a9e, #fecfef);
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .photo-popup {
+            text-align: center;
+        }
+
+        .photo-popup img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .photo-popup h4 {
+            margin-bottom: 5px;
+            color: #ff6b9d;
+            font-weight: 600;
+        }
+
+        .photo-popup p {
+            color: #ff9a9e;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .debug-info {
+            background: linear-gradient(135deg, #fef7ff 0%, #fff 100%);
+            border: 2px solid #fecfef;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 15px;
+            font-family: 'Comfortaa', monospace;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 15px rgba(255, 154, 158, 0.1);
+        }
+
+        .debug-info h4 {
+            margin-bottom: 10px;
+            color: #ff6b9d;
+            font-weight: 600;
+        }
+
+        .debug-info pre {
+            background: linear-gradient(135deg, #fecfef 0%, #fff 100%);
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            border: 1px solid #fecfef;
+            color: #ff6b9d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📸 写真位置マップ</h1>
+            <p>撮影した写真の位置を地図上で確認できます</p>
+        </header>
+        
+        <div class="upload-section">
+            <input type="file" id="photoInput" accept="image/*" multiple>
+            <label for="photoInput" class="upload-btn">写真を選択</label>
+            <div id="debugInfo" class="debug-info" style="display: none;">
+                <h4>デバッグ情報</h4>
+                <div id="debugContent"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+            
+            <div class="photo-gallery">
+                <h3>アップロードした写真</h3>
+                <div id="photoList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.js"></script>
+    <script>
+        // グローバル変数
+        let map;
+        let photoMarkers = [];
+        let uploadedPhotos = [];
+
+        // 地図の初期化
+        function initMap() {
+            // 東京を中心とした地図を初期化
+            map = L.map('map').setView([35.6762, 139.6503], 10);
+            
+            // OpenStreetMapタイルレイヤーを追加
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // 写真アップロード処理
+        function handlePhotoUpload(event) {
+            const files = event.target.files;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith('image/')) {
+                    processPhoto(file);
+                }
+            }
+        }
+
+        // 写真の処理
+        function processPhoto(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    console.log('画像読み込み完了:', file.name);
+                    
+                    // EXIFデータから位置情報を取得
+                    EXIF.getData(img, function() {
+                        console.log('EXIFデータ読み込み開始');
+                        
+                        // デバッグ用：全てのEXIFタグを表示
+                        const allTags = EXIF.getAllTags(this);
+                        console.log('EXIFタグ一覧:', allTags);
+                        
+                        const lat = EXIF.getTag(this, "GPSLatitude");
+                        const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                        const lng = EXIF.getTag(this, "GPSLongitude");
+                        const lngRef = EXIF.getTag(this, "GPSLongitudeRef");
+                        
+                        // デバッグ情報をUIに表示
+                        showDebugInfo(file.name, allTags, { lat, latRef, lng, lngRef });
+                        
+                        console.log('GPS情報:', {
+                            lat: lat,
+                            latRef: latRef,
+                            lng: lng,
+                            lngRef: lngRef
+                        });
+                        
+                        let latitude = null;
+                        let longitude = null;
+                        
+                        if (lat && lng && Array.isArray(lat) && Array.isArray(lng)) {
+                            try {
+                                latitude = convertDMSToDD(lat, latRef);
+                                longitude = convertDMSToDD(lng, lngRef);
+                                console.log('変換後の座標:', { latitude, longitude });
+                            } catch (error) {
+                                console.error('座標変換エラー:', error);
+                            }
+                        } else {
+                            console.log('位置情報が見つかりません');
+                        }
+                        
+                        // 写真データを保存
+                        const photoData = {
+                            id: Date.now() + Math.random(),
+                            name: file.name,
+                            url: e.target.result,
+                            latitude: latitude,
+                            longitude: longitude,
+                            file: file
+                        };
+                        
+                        uploadedPhotos.push(photoData);
+                        displayPhoto(photoData);
+                        
+                        if (latitude && longitude) {
+                            addPhotoMarker(photoData);
+                        }
+                    });
+                };
+                
+                img.onerror = function() {
+                    console.error('画像読み込みエラー:', file.name);
+                };
+                
+                img.src = e.target.result;
+            };
+            
+            reader.onerror = function() {
+                console.error('ファイル読み込みエラー:', file.name);
+            };
+            
+            reader.readAsDataURL(file);
+        }
+
+        // DMS（度分秒）をDD（十進度）に変換
+        function convertDMSToDD(dms, ref) {
+            console.log('DMS変換:', { dms, ref });
+            
+            if (!Array.isArray(dms) || dms.length < 3) {
+                console.error('DMS配列が無効です:', dms);
+                return null;
+            }
+            
+            // 度分秒を数値に変換
+            const degrees = parseFloat(dms[0]) || 0;
+            const minutes = parseFloat(dms[1]) || 0;
+            const seconds = parseFloat(dms[2]) || 0;
+            
+            console.log('度分秒:', { degrees, minutes, seconds });
+            
+            let dd = degrees + minutes/60 + seconds/(60*60);
+            
+            if (ref === "S" || ref === "W") {
+                dd = dd * -1;
+            }
+            
+            console.log('変換結果:', dd);
+            return dd;
+        }
+
+        // 写真をギャラリーに表示
+        function displayPhoto(photoData) {
+            const photoList = document.getElementById('photoList');
+            const photoItem = document.createElement('div');
+            photoItem.className = 'photo-item';
+            photoItem.dataset.photoId = photoData.id;
+            
+            const locationText = photoData.latitude && photoData.longitude 
+                ? `${photoData.latitude.toFixed(6)}, ${photoData.longitude.toFixed(6)}`
+                : '位置情報なし';
+            
+            const locationClass = photoData.latitude && photoData.longitude 
+                ? 'photo-location' 
+                : 'no-location';
+            
+            photoItem.innerHTML = `
+                <img src="${photoData.url}" class="photo-thumbnail" alt="${photoData.name}">
+                <div class="photo-info">
+                    <div class="photo-name">${photoData.name}</div>
+                    <div class="${locationClass}">${locationText}</div>
+                    ${photoData.latitude && photoData.longitude ? '<div class="location-marker">📍 位置情報あり</div>' : ''}
+                </div>
+            `;
+            
+            // クリックイベントを追加
+            photoItem.addEventListener('click', function() {
+                if (photoData.latitude && photoData.longitude) {
+                    map.setView([photoData.latitude, photoData.longitude], 15);
+                }
+            });
+            
+            photoList.appendChild(photoItem);
+        }
+
+        // 地図上にマーカーを追加
+        function addPhotoMarker(photoData) {
+            const marker = L.marker([photoData.latitude, photoData.longitude], {
+                icon: L.divIcon({
+                    className: 'custom-marker',
+                    html: '📸',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                })
+            }).addTo(map);
+            
+            // ポップアップを作成
+            const popupContent = `
+                <div class="photo-popup">
+                    <img src="${photoData.url}" alt="${photoData.name}" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+                    <h4>${photoData.name}</h4>
+                    <p>緯度: ${photoData.latitude.toFixed(6)}</p>
+                    <p>経度: ${photoData.longitude.toFixed(6)}</p>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent);
+            
+            photoMarkers.push(marker);
+        }
+
+        // 全てのマーカーを表示
+        function showAllMarkers() {
+            if (photoMarkers.length > 0) {
+                const group = new L.featureGroup(photoMarkers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        // 位置情報なしの写真をフィルタリング
+        function filterPhotosWithLocation() {
+            const photoItems = document.querySelectorAll('.photo-item');
+            photoItems.forEach(item => {
+                const hasLocation = item.querySelector('.location-marker');
+                if (!hasLocation) {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // 全ての写真を表示
+        function showAllPhotos() {
+            const photoItems = document.querySelectorAll('.photo-item');
+            photoItems.forEach(item => {
+                item.style.display = 'flex';
+            });
+        }
+
+        // デバッグ情報をUIに表示
+        function showDebugInfo(fileName, allTags, gpsInfo) {
+            const debugInfo = document.getElementById('debugInfo');
+            const debugContent = document.getElementById('debugContent');
+            
+            if (debugInfo && debugContent) {
+                debugInfo.style.display = 'block';
+                
+                const debugText = `
+ファイル名: ${fileName}
+
+GPS情報:
+- 緯度: ${gpsInfo.lat ? JSON.stringify(gpsInfo.lat) : 'なし'}
+- 緯度参照: ${gpsInfo.latRef || 'なし'}
+- 経度: ${gpsInfo.lng ? JSON.stringify(gpsInfo.lng) : 'なし'}
+- 経度参照: ${gpsInfo.lngRef || 'なし'}
+
+利用可能なEXIFタグ:
+${Object.keys(allTags).length > 0 ? Object.keys(allTags).join(', ') : 'なし'}
+
+全EXIFデータ:
+${JSON.stringify(allTags, null, 2)}
+                `;
+                
+                debugContent.innerHTML = `<pre>${debugText}</pre>`;
+            }
+        }
+
+        // イベントリスナーの設定
+        document.addEventListener('DOMContentLoaded', function() {
+            // EXIFライブラリの確認
+            if (typeof EXIF === 'undefined') {
+                console.error('EXIFライブラリが利用できません');
+                return;
+            }
+            
+            // 地図の初期化
+            initMap();
+            
+            // 写真アップロードのイベントリスナー
+            const photoInput = document.getElementById('photoInput');
+            photoInput.addEventListener('change', handlePhotoUpload);
+            
+            // キーボードショートカット
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    switch(e.key) {
+                        case 'o':
+                            e.preventDefault();
+                            photoInput.click();
+                            break;
+                        case 'a':
+                            e.preventDefault();
+                            showAllMarkers();
+                            break;
+                    }
+                }
+            });
+        });
+
+        // エラーハンドリング
+        window.addEventListener('error', function(e) {
+            console.error('エラーが発生しました:', e.error);
+        });
+
+        // 位置情報の取得に失敗した場合の処理
+        function handleLocationError(error) {
+            console.warn('位置情報の取得に失敗しました:', error);
+        }
+
+        // EXIFライブラリの読み込み確認
+        window.addEventListener('load', function() {
+            if (typeof EXIF === 'undefined') {
+                console.error('EXIFライブラリが読み込まれていません');
+                alert('EXIFライブラリの読み込みに失敗しました。ページを再読み込みしてください。');
+            } else {
+                console.log('EXIFライブラリ読み込み完了');
+            }
+        });
+    </script>
+</body>
+</html>
